@@ -1,0 +1,96 @@
+#!/usr/bin/env ruby
+require 'optparse'
+require 'yaml'
+require 'fly_south'
+
+# default configs
+cfg = {
+  target: nil,
+  dir: 'migrations',
+  initfile: 'migrate_init.rb',
+  statefile: 'migrate_version'
+}
+
+# parse CLI options
+OptionParser.new do |opts|
+  opts.banner = 'Usage: migrate.rb [options]'
+  opts.on '-v VERSION', String, 'Target version or INITIAL to migrate all down' do |v|
+    cfg[:target] = v
+  end
+  opts.on '-d DIRECTORY', String, 'Path to directory containing migrations' do |v|
+    cfg[:dir] = v
+  end
+  opts.on '-s FILENAME', String, 'File storing the current version ID' do |v|
+    cfg[:statefile] = v
+  end
+  opts.on '-i FILENAME', String, 'Initialization script' do |v|
+    cfg[:initfile] = v
+  end
+  opts.on '-h', 'Show this help message' do
+    puts opts
+    exit
+  end
+end.parse!
+
+# run init script
+if File.exists? cfg[:initfile]
+  load File.realpath(cfg[:initfile]), true
+end
+
+# assemble list of all migrations
+versions = [FlySouth::Migration.new(nil, 'INITIAL', nil)]
+Dir.entries(cfg[:dir]).each do |f|
+  if f.end_with? '.rb'
+    id, tag = f[0...-3].split '_', 2
+    versions << FlySouth::Migration.new(File.realpath(File.join cfg[:dir], f), id, tag)
+  end
+end
+
+# determine index of current version
+if File.exists? cfg[:statefile]
+  current_id = File.read(cfg[:statefile]).strip
+  current = versions.index{|m| m.id == current_id}
+  raise "invalid current version: #{current_id}" unless current
+else
+  current = 0
+end
+#puts "(current version is #{versions[current].id})"
+
+# determine index of taret version
+if tv = cfg[:target]
+  targets = (0...versions.length).select do |i|
+    v = versions[i]
+    v.id == tv || v.tag == tv || v.file == tv
+  end
+
+  case targets.length
+  when 0
+    raise "invalid target: #{tv}"
+  when 1
+    target = targets.first
+  else
+    raise "ambiguous target: #{tv} (#{target.map(&:file).join ', '})"
+  end
+else
+  target = versions.length-1
+end
+#puts "(target version is #{versions[target].id})"
+
+# run migrations
+if target == current
+  puts "Already at version #{versions[current].id}"
+else
+  runner = FlySouth::Runner.new versions, current
+  runner.migrate target-current
+
+  if runner.current != current
+    File.open(cfg[:statefile], 'w') do |f|
+      f.write versions[runner.current].id
+    end
+    puts "Now at version #{versions[runner.current].id}"
+  else
+    puts "Still at version #{versions[runner.current].id}"
+  end
+
+  exit(1) if runner.current != target
+end
