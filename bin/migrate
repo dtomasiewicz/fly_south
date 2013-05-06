@@ -88,24 +88,24 @@ if tv = cfg[:target]
 else
   target = versions.length-1
 end
-log.info "Target version is #{versions[target].id}"
+log.info "Target version is #{versions[target].id} (#{versions[target].tag})"
 
 # run migrations
 if target == current
-  puts "Already at version #{versions[current].id}"
+  puts "Already at version #{versions[current].id} (#{versions[current].tag})"
 else
   runner = FlySouth.runner.new versions, current
   runner.logger = log
   state = File.open cfg[:statefile], 'w'
   begin
     runner.migrate target-current
-    puts "Now at version #{versions[runner.current].id}"
+    puts "Now at version #{runner.version.id} (#{runner.version.tag})"
   rescue Exception => e
     log.error "#{e.inspect}\n#{e.backtrace.join "\n"}"
-    puts "Halted at version #{versions[runner.current].id}"
+    puts "Halted at version #{runner.version.id} (#{runner.version.tag})"
     exit 1
   ensure
-    state.write versions[runner.current].id
+    state.write runner.version.id
     state.close
   end
 end

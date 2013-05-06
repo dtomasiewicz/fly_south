@@ -11,6 +11,10 @@ module FlySouth
       @versions, @current = versions.freeze, current
     end
 
+    def version
+      @versions[@current]
+    end
+
     # returns true only if all migrations are successful
     def migrate(delta)
       if delta == 0
