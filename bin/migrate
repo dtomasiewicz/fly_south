@@ -2,13 +2,16 @@
 require 'optparse'
 require 'yaml'
 require 'fly_south'
+require 'logger'
+
 
 # default configs
 cfg = {
   target: nil,
   dir: 'migrations',
   initfile: 'migrate_init.rb',
-  statefile: 'migrate_version'
+  statefile: 'migrate_version',
+  loglevel: Logger::WARN
 }
 
 # parse CLI options
@@ -26,11 +29,21 @@ OptionParser.new do |opts|
   opts.on '-i FILENAME', String, 'Initialization script' do |v|
     cfg[:initfile] = v
   end
+  opts.on '-l', 'Show all logger output' do |v|
+    cfg[:loglevel] = Logger::INFO
+  end
   opts.on '-h', 'Show this help message' do
     puts opts
     exit
   end
+  opts.on
 end.parse!
+
+log = Logger.new $stderr
+log.level = cfg[:loglevel]
+log.formatter = proc do |severity, datetime, progname, msg|
+  "[#{datetime}] #{severity}: #{msg}\n"
+end
 
 # run init script
 if File.exists? cfg[:initfile]
@@ -50,13 +63,13 @@ end
 if File.exists? cfg[:statefile]
   current_id = File.read(cfg[:statefile]).strip
   current = versions.index{|m| m.id == current_id}
-  raise "invalid current version: #{current_id}" unless current
+  raise "Invalid current version: #{current_id}" unless current
 else
   current = 0
 end
-#puts "(current version is #{versions[current].id})"
+log.info "Current version is #{versions[current].id}"
 
-# determine index of taret version
+# determine index of target version
 if tv = cfg[:target]
   targets = (0...versions.length).select do |i|
     v = versions[i]
@@ -65,32 +78,33 @@ if tv = cfg[:target]
 
   case targets.length
   when 0
-    raise "invalid target: #{tv}"
+    raise "Invalid target: #{tv}"
   when 1
     target = targets.first
   else
-    raise "ambiguous target: #{tv} (#{target.map(&:file).join ', '})"
+    raise "Ambiguous target: #{tv} (#{target.map(&:file).join ', '})"
   end
 else
   target = versions.length-1
 end
-#puts "(target version is #{versions[target].id})"
+log.info "Target version is #{versions[target].id}"
 
 # run migrations
 if target == current
   puts "Already at version #{versions[current].id}"
 else
   runner = FlySouth::Runner.new versions, current
-  runner.migrate target-current
-
-  if runner.current != current
-    File.open(cfg[:statefile], 'w') do |f|
-      f.write versions[runner.current].id
-    end
+  runner.logger = log
+  state = File.open cfg[:statefile], 'w'
+  begin
+    runner.migrate target-current
     puts "Now at version #{versions[runner.current].id}"
-  else
-    puts "Still at version #{versions[runner.current].id}"
+  rescue Exception => e
+    log.error "#{e.inspect}\n#{e.backtrace.join "\n"}"
+    puts "Halted at version #{versions[runner.current].id}."
+    exit 1
+  ensure
+    state.write versions[runner.current].id
+    state.close
   end
-
-  exit(1) if runner.current != target
 end
