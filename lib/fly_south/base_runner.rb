@@ -65,7 +65,10 @@ module FlySouth
     end
 
     def teardown(error)
-      log :error, "#{error.inspect}\n#{error.backtrace.join "\n"}" if error
+      if error
+        trace = error.backtrace.map{|l| "  #{l}"}.join "\n"
+        log :error, "#{error.inspect}\n#{trace}"
+      end
     end
 
     def before_each(migration)

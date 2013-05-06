@@ -16,4 +16,4 @@ end
 
 require 'fly_south/base_runner'
 
-FlySouth.runner = BaseRunner
+FlySouth.runner = FlySouth::BaseRunner

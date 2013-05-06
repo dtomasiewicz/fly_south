@@ -50,13 +50,15 @@ if File.exists? cfg[:initfile]
 end
 
 # assemble list of all migrations
-versions = [FlySouth::Migration.new(nil, 'INITIAL', nil)]
+versions = []
 Dir.entries(cfg[:dir]).each do |f|
   if f.end_with? '.rb'
     id, tag = f[0...-3].split '_', 2
     versions << FlySouth::Migration.new(File.realpath(File.join cfg[:dir], f), id, tag)
   end
 end
+versions.sort_by! &:id
+versions.unshift FlySouth::Migration.new(nil, 'INITIAL', nil)
 
 # determine index of current version
 if File.exists? cfg[:statefile]
@@ -100,7 +102,7 @@ else
     puts "Now at version #{versions[runner.current].id}"
   rescue Exception => e
     log.error "#{e.inspect}\n#{e.backtrace.join "\n"}"
-    puts "Halted at version #{versions[runner.current].id}."
+    puts "Halted at version #{versions[runner.current].id}"
     exit 1
   ensure
     state.write versions[runner.current].id
