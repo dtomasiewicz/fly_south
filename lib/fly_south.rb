@@ -1,17 +1,19 @@
 module FlySouth
 
-  module Migrations
+  Migration = Struct.new :file, :id, :tag
 
-    def setup; end
-    def teardown; end
+  module Migrations; end
 
-    def before_each(migration); end
-    def after_each(error); end
-
+  def self.runner
+    @runner
   end
 
-  Migration = Struct.new :file, :id, :tag
+  def self.runner=(runner)
+    @runner = runner
+  end
 
 end
 
-require 'fly_south/runner'
+require 'fly_south/base_runner'
+
+FlySouth.runner = BaseRunner

@@ -4,7 +4,6 @@ require 'yaml'
 require 'fly_south'
 require 'logger'
 
-
 # default configs
 cfg = {
   target: nil,
@@ -93,7 +92,7 @@ log.info "Target version is #{versions[target].id}"
 if target == current
   puts "Already at version #{versions[current].id}"
 else
-  runner = FlySouth::Runner.new versions, current
+  runner = FlySouth.runner.new versions, current
   runner.logger = log
   state = File.open cfg[:statefile], 'w'
   begin

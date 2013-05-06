@@ -1,16 +1,17 @@
 module FlySouth
 
-  class Runner
+  class BaseRunner
+
+    include Migrations
 
     attr_reader :versions, :current
     attr_writer :logger
 
     def initialize(versions, current)
       @versions, @current = versions.freeze, current
-      extend Migrations
     end
 
-    # returns number of successful migrations
+    # returns true only if all migrations are successful
     def migrate(delta)
       if delta == 0
         return
@@ -20,8 +21,9 @@ module FlySouth
         run = @versions[@current+delta+1..@current].reverse!
       end
 
-      setup
+      setup run
 
+      error = nil
       begin
         run.each do |m|
           method = :"#{m.tag}_#{delta > 0 ? 'up' : 'down'}"
@@ -34,21 +36,43 @@ module FlySouth
             before_each m
             begin
               send method
-            rescue Exception => e
-              after_each e
-              raise e
+            rescue Exception => error
+              break
+            ensure
+              after_each error
+              log :info, "... #{error ? 'error' : 'completed'} (#{'%.2f' % (Time.now-start)})."
             end
-            after_each nil
-            log :info, "... completed (#{'%.2f' % (Time.now-start)})."
           else
             log :warn, "#{method} is not defined; ignoring"
             log :info, "... skipped."
           end
+
           @current += (delta <=> 0)
         end
+      rescue Exception => error
       ensure
-        teardown
+        teardown error
       end
+
+      !error
+    end
+
+    protected
+
+    # hooks
+
+    def setup(migrations)
+    end
+
+    def teardown(error)
+      log :error, "#{error.inspect}\n#{error.backtrace.join "\n"}" if error
+    end
+
+    def before_each(migration)
+    end
+
+    def after_each(error)
+      log :error, "#{error.inspect}" if error
     end
 
     private
