@@ -1,6 +1,10 @@
 module FlySouth
 
-  Migration = Struct.new :file, :id, :tag
+  Migration = Struct.new :file, :id, :tag do
+    def to_s
+      tag ? "#{id} (#{tag})" : id
+    end
+  end
 
   module Migrations; end
 
