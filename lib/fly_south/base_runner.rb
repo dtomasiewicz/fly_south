@@ -82,8 +82,6 @@ module FlySouth
       log :error, "#{error.inspect}" if error
     end
 
-    private
-
     def log(type, message)
       @logger.send type, message if @logger
     end
